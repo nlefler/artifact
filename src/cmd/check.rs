@@ -16,6 +16,7 @@
  * */
 use dev_prefix::*;
 use super::types::*;
+use core;
 
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("check")
@@ -39,26 +40,23 @@ fn paint_it_bold<W: Write>(w: &mut W, msg: &str) {
     }
 }
 
-/// #SPC-cmd-check
-#[allow(cyclomatic_complexity)] // TODO: break this up
-pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()> {
-    let artifacts = &project.artifacts;
+fn display_invalid_partof<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> u64 {
+    let mut error: u64 = 0;
 
-    let mut error: i32 = 0;
     // display invalid partof names and locations
     let mut invalid_partof = ArtNames::new();
 
     // display artifacts with invalid partof names
     let mut displayed_header = false;
-    for (name, artifact) in artifacts.iter() {
+    for (name, artifact) in &project.artifacts {
         invalid_partof.clear();
         for p in &artifact.partof {
-            if !artifacts.contains_key(p) {
+            if !project.artifacts.contains_key(p) {
                 invalid_partof.insert(p.clone());
             }
         }
         if !invalid_partof.is_empty() {
-            error = 1;
+            error += 1;
             let mut msg = String::new();
             if !displayed_header {
                 displayed_header = true;
@@ -74,21 +72,29 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
         }
     }
 
+    error
+}
+
+fn display_unresolvable<W: Write>(w: &mut W, project: &Project) -> u64 {
+    let mut error: u64 = 0;
+
     // display unresolvable partof names
-    let unresolved: Vec<(ArtNameRc, &Artifact)> = Vec::from_iter(artifacts.iter()
+    let unresolved: Vec<(ArtNameRc, &Artifact)> = Vec::from_iter(project.artifacts
+        .iter()
         .filter(|a| a.1.completed < 0. || a.1.tested < 0.)
         .map(|n| (n.0.clone(), n.1)));
     let unknown_names: HashSet<ArtNameRc> = HashSet::from_iter(unresolved.iter()
         .map(|u| u.0.clone()));
 
     if !unresolved.is_empty() {
-        error = 1;
+        error += 1;
         let mut unresolved_partof: HashMap<ArtNameRc, HashSet<ArtNameRc>> = HashMap::new();
         for &(ref name, artifact) in &unresolved {
             let partof: HashSet<_> = artifact.partof
                 .iter()
                 .filter(|n| {
-                    !artifacts.contains_key(n.as_ref()) || unknown_names.contains(n.as_ref())
+                    !project.artifacts.contains_key(n.as_ref()) ||
+                    unknown_names.contains(n.as_ref())
                 })
                 .cloned()
                 .collect();
@@ -146,9 +152,15 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
         }
     }
 
+    error
+}
+
+fn display_invalid_locs<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> u64 {
+    let mut error: u64 = 0;
+
     // display invalid locations
     if !project.dne_locs.is_empty() {
-        error = 1;
+        error += 1;
         // reorganize them by file
         let mut invalid_locs: HashMap<PathBuf, Vec<(ArtName, Loc)>> = HashMap::new();
         for (name, loc) in &project.dne_locs {
@@ -179,6 +191,14 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
             }
         }
     }
+
+    error
+}
+
+
+fn display_hanging_artifacts<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> u64 {
+    let mut error: u64 = 0;
+
     // find hanging artifacts
     fn partof_types(a: &Artifact, types: &HashSet<ArtType>) -> bool {
         for p in &a.partof {
@@ -192,7 +212,7 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
     let req_types = HashSet::from_iter(vec![ArtType::REQ]);
 
     let mut hanging: Vec<(ArtNameRc, &Path)> = Vec::new();
-    for (name, artifact) in artifacts.iter() {
+    for (name, artifact) in &project.artifacts {
         let ty = name.ty;
         if (ty != ArtType::REQ) && !artifact.is_parent() && !name.is_root() &&
            name.parent().unwrap().is_root() &&
@@ -206,7 +226,7 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
     }
     hanging.sort_by(|a, b| a.1.cmp(b.1));
     if !hanging.is_empty() {
-        error = 1;
+        error += 1;
         let msg = "\nHanging artifacts found (top-level but not partof a higher type):\n";
         paint_it_bold(w, msg);
         for (h, p) in hanging {
@@ -219,6 +239,61 @@ pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()>
             write!(w, "{}", msg).unwrap();
         }
     }
+
+    error
+}
+
+fn display_hanging_references<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> u64 {
+    let mut error: u64 = 0;
+
+    let regexp = Regex::new(&format!(r"(?i)\[\[({})\]\]", core::types::ART_VALID_STR))
+        .expect("tested regexp");
+    let mut hanging: HashMap<ArtNameRc, Vec<ArtName>> = HashMap::new();
+
+    for (name, artifact) in &project.artifacts {
+        let mut found = vec![];
+        for cap in regexp.captures_iter(&artifact.text) {
+            let raw = cap.get(1).expect("regexp definition");
+            let tname = ArtName::from_str(raw.as_str()).expect("regexp validatd");
+            if !project.artifacts.contains_key(&tname) {
+                error += 1;
+                found.push(tname);
+            }
+        }
+        if !found.is_empty() {
+            hanging.insert(name.clone(), found);
+        }
+    }
+
+    if !hanging.is_empty() {
+        paint_it_bold(w,
+                      "\nArtifacts text contains invalid [[ART-name]] references:\n");
+        let mut hanging: Vec<_> = hanging.drain().collect();
+        hanging.sort();
+        for &(ref name, ref found) in &hanging {
+            let artifact = project.artifacts.get(name).expect("inserted from");
+            paint_it(w,
+                     &format!("    {} ({}):\n",
+                              name,
+                              utils::relative_path(&artifact.path, cwd).display()));
+            for f in found {
+                write!(w, "    - {}", f).unwrap();
+            }
+        }
+    }
+    error
+}
+
+/// #SPC-cmd-check
+#[allow(cyclomatic_complexity)] // TODO: break this up
+pub fn run_cmd<W: Write>(w: &mut W, cwd: &Path, project: &Project) -> Result<()> {
+    let mut error: u64 = 0;
+
+    error += display_invalid_partof(w, cwd, project);
+    error += display_unresolvable(w, project);
+    error += display_invalid_locs(w, cwd, project);
+    error += display_hanging_artifacts(w, cwd, project);
+    error += display_hanging_references(w, cwd, project);
 
     if error == 0 {
         let mut msg = String::new();
