@@ -1,7 +1,5 @@
 use dev_prefix::*;
-pub use core::prefix::*;
-
-pub use std::rc::Rc;
+use types::*;
 
 /// settings for what to format
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -32,12 +30,12 @@ pub struct FmtArtifact {
     pub path: Option<PathBuf>,
     pub parts: Option<Vec<FmtArtifact>>,
     pub partof: Option<Vec<FmtArtifact>>,
-    pub loc: Option<Loc>,
+    pub done: Option<String>,
     // pub loc_path: Option<PathBuf>,
     // pub loc_line_col: (usize, usize),
     // pub loc_valid: Option<bool>,
     pub text: Option<String>,
-    pub name: ArtNameRc,
+    pub name: NameRc,
 }
 
 

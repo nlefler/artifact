@@ -18,7 +18,9 @@
 //! methods to format the `FmtArtifact` object and write it to a stream
 
 use dev_prefix::*;
-use super::types::*;
+use types::*;
+use cmd::types::*;
+use utils;
 
 impl FmtArtifact {
     /// write the formatted version of the artifact to the
@@ -135,11 +137,6 @@ impl FmtArtifact {
                 }
                 try!(write!(w, "{}% ", t_perc));
                 try!(write!(w, "| {} ", name));
-                if name.len() < 45 {
-                    for _ in 0..(45 - name.len()) {
-                        try!(w.write_all(" ".as_ref()));
-                    }
-                }
             }
         } else if nfno {
             try!(write!(w, "{}", &self.name.raw));
@@ -147,7 +144,7 @@ impl FmtArtifact {
             let d_sym = if artifact.completed >= 1. { "D" } else { "-" };
             let t_sym = if artifact.tested >= 1. { "T" } else { "-" };
             try!(write!(w,
-                        "|{}{}| {:>3}% {:>3}% | {:<45} ",
+                        "|{}{}| {:>3}% {:>3}% | {}",
                         d_sym,
                         t_sym,
                         completed_str,
@@ -161,7 +158,7 @@ impl FmtArtifact {
 
         // format the parts
         if let Some(ref parts) = self.parts {
-            self.write_header(w, "\n * parts: ", color);
+            self.write_start(w, "\n * parts: ", color);
             for (n, p) in parts.iter().enumerate() {
                 if self.long {
                     w.write_all("\n    ".as_ref()).unwrap();
@@ -171,12 +168,11 @@ impl FmtArtifact {
                     w.write_all(", ".as_ref()).unwrap();
                 }
             }
-            self.write_end(w)
         }
 
         // format the artifacts that are a partof this artifact
         if let Some(ref partof) = self.partof {
-            self.write_header(w, "\n * partof: ", color);
+            self.write_start(w, "\n * partof: ", color);
             let mut first = true;
             for p in partof {
                 if !first && p.name_only() {
@@ -185,42 +181,41 @@ impl FmtArtifact {
                 first = false;
                 try!(p.write(w, cwd, artifacts, color, indent + 1));
             }
-            self.write_end(w);
         }
 
         // format the location that where the implementation of this artifact can be found
-        if let Some(ref loc) = self.loc {
-            self.write_header(w, "\n * implemented-at: ", color);
+        if let Some(ref done) = self.done {
+            self.write_start(w, "\n * done: ", color);
             if color {
-                try!(write!(w, "{}", Green.paint(loc.to_string())));
+                try!(write!(w, "{}", Green.paint(done.as_ref())));
             } else {
-                try!(w.write_all(loc.to_string().as_ref()));
+                try!(w.write_all(done.as_ref()));
             }
             try!(w.write_all(" ".as_ref()));
         }
 
         // format where the artifact is defined
         if let Some(ref path) = self.path {
-            self.write_header(w, "\n * defined-at: ", color);
+            self.write_start(w, "\n * defined-at: ", color);
             let path = utils::relative_path(path.as_path(), cwd);
             try!(write!(w, "{}", path.display()));
-            self.write_end(w);
         }
 
         // format the text
         // TODO: use markdown to apply styles to the text
         if let Some(ref text) = self.text {
-            self.write_header(w, "\n * text:\n    ", color);
-            let lines: Vec<_> = text.split('\n').collect();
-            let text = lines.join("\n    ");
-            w.write_all(text.as_ref()).unwrap();
+            self.write_start(w, "\n * text:\n", color);
+            w.write_all(text.trim_right().as_ref()).unwrap();
+            if self.long {
+                w.write_all("\n".as_ref()).unwrap();
+            }
         }
 
         try!(w.write_all("\n".as_ref()));
         Ok(())
     }
 
-    fn write_header<W: io::Write>(&self, w: &mut W, msg: &str, color: bool) {
+    fn write_start<W: io::Write>(&self, w: &mut W, msg: &str, color: bool) {
         if self.long {
             if color {
                 write!(w, "{}", Green.paint(msg)).unwrap();
@@ -228,18 +223,14 @@ impl FmtArtifact {
                 w.write_all(msg.as_ref()).unwrap();
             }
         } else {
-            w.write_all("| ".as_ref()).unwrap();
+            w.write_all("\t| ".as_ref()).unwrap();
         }
-    }
-
-    fn write_end<W: io::Write>(&self, w: &mut W) {
-        w.write_all(" ".as_ref()).unwrap();
     }
 
     /// return whether this object is only the name
     /// if it is, it is formatted differently
     fn name_only(&self) -> bool {
-        match (&self.path, &self.parts, &self.partof, &self.loc, &self.text) {
+        match (&self.path, &self.parts, &self.partof, &self.done, &self.text) {
             (&None, &None, &None, &None, &None) => true,
             _ => false,
         }
@@ -248,24 +239,21 @@ impl FmtArtifact {
 
 pub fn write_table_header<W: io::Write>(w: &mut W, fmt_set: &FmtSettings) {
     let mut header = String::new();
-    header.write_str("|  | DONE TEST | ARTIFACT NAME").unwrap();
-    for _ in 0..33 {
-        header.push(' ');
-    }
+    header.write_str("|  | DONE TEST | NAME").unwrap();
     if fmt_set.parts {
-        header.write_str("| PARTS   ").unwrap();
+        header.write_str("\t| PARTS   ").unwrap();
     }
     if fmt_set.partof {
-        header.write_str("| PARTOF   ").unwrap();
+        header.write_str("\t| PARTOF   ").unwrap();
     }
     if fmt_set.loc_path {
-        header.write_str("| IMPLEMENTED   ").unwrap();
+        header.write_str("\t| IMPLEMENTED   ").unwrap();
     }
     if fmt_set.path {
-        header.write_str("| DEFINED   ").unwrap();
+        header.write_str("\t| DEFINED   ").unwrap();
     }
     if fmt_set.text {
-        header.write_str("| TEXT").unwrap();
+        header.write_str("\t| TEXT").unwrap();
     }
     header.push('\n');
     if fmt_set.color {

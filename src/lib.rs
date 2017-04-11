@@ -14,12 +14,12 @@
  * You should have received a copy of the Lesser GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * */
+
+//! artifact library
 // need for clippy lints
 #![allow(unknown_lints)]
 #![allow(zero_ptr)]
 #![recursion_limit = "1024"]
-// # logger config
-extern crate fern;
 
 // # general crates
 #[macro_use]
@@ -28,6 +28,7 @@ extern crate error_chain;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+extern crate fern;
 extern crate itertools;
 
 // # core crates
@@ -36,19 +37,32 @@ extern crate strfmt;
 extern crate time;
 extern crate rustc_serialize;
 extern crate difference;
+extern crate unicode_segmentation;
+extern crate unicode_width;
 
 // # cmdline crates
 extern crate clap;
 extern crate ansi_term;
-
-// # web api crates
-#[macro_use]
-extern crate nickel;
-extern crate jsonrpc_core;
-
-// # for web front end
-extern crate tempdir;
+extern crate tabwriter;
 extern crate tar;
+
+// # server crates
+#[cfg(feature="server")]
+extern crate nickel;
+#[cfg(feature="server")]
+extern crate jsonrpc_core;
+extern crate tempdir;
+
+#[macro_use]
+#[cfg(feature="server")]
+extern crate diesel;
+#[cfg(feature="server")]
+#[macro_use]
+extern crate diesel_codegen;
+#[cfg(feature="server")]
+extern crate dotenv;
+#[cfg(features="server")]
+extern crate chrono;
 
 // serialization
 #[macro_use]
@@ -57,47 +71,29 @@ extern crate serde;
 extern crate serde_json;
 extern crate toml;
 
-// modules
-pub mod types;
-pub mod dev_prefix;
-pub mod core;
-pub mod ui;
+// crates for test
+#[cfg(test)]
+extern crate fs_extra;
 
-mod api;
+// "core" modules
+pub mod dev_prefix;
+pub mod types;
+pub mod user;
+pub mod logging;
+pub mod export;
+pub mod utils;
+pub mod security;
+
+// command line modules
+pub mod ui;
 pub mod cmd;
 
-use std::result;
+#[cfg(test)]
+pub mod test_data;
+
+// server modules
+#[cfg(feature="server")]
+pub mod api;
+
 pub use types::*;
 
-pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
-pub fn init_logger(quiet: bool,
-                   verbosity: u8,
-                   stderr: bool)
-                   -> result::Result<(), fern::InitError> {
-    let level = if quiet {
-        log::LogLevelFilter::Off
-    } else {
-        match verbosity {
-            0 => log::LogLevelFilter::Warn,
-            1 => log::LogLevelFilter::Info,
-            2 => log::LogLevelFilter::Debug,
-            3 => log::LogLevelFilter::Trace,
-            _ => unreachable!(),
-        }
-    };
-    let output = if stderr {
-        fern::OutputConfig::stderr()
-    } else {
-        fern::OutputConfig::stdout()
-    };
-
-    let logger_config = fern::DispatchConfig {
-        format: Box::new(|msg: &str, level: &log::LogLevel, _location: &log::LogLocation| {
-            format!("{}: {}", level, msg)
-        }),
-        output: vec![output],
-        level: level,
-    };
-    fern::init_global_logger(logger_config, log::LogLevelFilter::Trace)
-}

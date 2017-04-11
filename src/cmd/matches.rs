@@ -23,43 +23,52 @@ use super::tutorial;
 use super::ls;
 use super::check;
 use super::fmt as fmtcmd;
-use super::server;
 
 pub fn get_matches<'a, I, T>(args: I) -> ClapResult<ArgMatches<'a>>
     where I: IntoIterator<Item = T>,
           T: Into<OsString> + clone::Clone
 {
-    App::new("artifact")
+    let app = App::new("artifact")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("the requirements tracking tool made for developers. Call `art tutorial` for \
-                a tutorial")
+        .about("The requirements tracking tool made for developers. \
+                Call `art tutorial` for a tutorial")
         .author("https://github.com/vitiral/artifact")
-        .settings(&[AS::ArgRequiredElseHelp,
-                    AS::DeriveDisplayOrder,
-                    AS::SubcommandRequiredElseHelp,
-                    AS::VersionlessSubcommands,
-                    COLOR])
-        .arg(Arg::with_name("v")
-            .short("v")
-            .multiple(true)
-            .help("sets the level of verbosity, use multiple (up to 3) to increase")
-            .global(true))
+        .settings(&APP_SETTINGS)
+        .arg(Arg::with_name("verbose")
+                 .short("v")
+                 .multiple(true)
+                 .help("Verbose, pass up to 3 times to increase the level")
+                 .global(true))
         .arg(Arg::with_name("quiet")
-            .short("q")
-            .long("quiet")
-            .help("if set no output will be printed")
-            .global(true))
+                 .short("q")
+                 .long("quiet")
+                 .help("If set no output will be printed")
+                 .global(true))
         .arg(Arg::with_name("work-tree")
-            .long("work-tree")
-            .help("use a different working tree instead of cwd")
-            .takes_value(true)
-            .global(true))
+                 .long("work-tree")
+                 .value_name("PATH")
+                 .help("Use a different working tree instead of cwd")
+                 .takes_value(true)
+                 .global(true))
         .subcommand(tutorial::get_subcommand())
         .subcommand(init::get_subcommand())
         .subcommand(ls::get_subcommand())
         .subcommand(check::get_subcommand())
         .subcommand(fmtcmd::get_subcommand())
-        .subcommand(server::get_subcommand())
-        .subcommand(export::get_subcommand())
-        .get_matches_from_safe(args)
+        .subcommand(export::get_subcommand());
+
+    let app = add_serve_cmd(app);
+    app.get_matches_from_safe(args)
+}
+
+
+#[cfg(feature="server")]
+pub fn add_serve_cmd<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    use cmd::server;
+    app.subcommand(server::get_subcommand())
+}
+
+#[cfg(not(feature="server"))]
+pub fn add_serve_cmd<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app
 }

@@ -51,9 +51,9 @@ non-developers, to view the design documents of their project.
 In this way, artifact aims to unify all of the other quality best practices
 while also making development easier and more fun.
 
-[![Build Status][build-status]][travis]
-[build-status]: https://travis-ci.org/vitiral/artifact.svg?branch=master
-[travis]: https://travis-ci.org/vitiral/artifact
+[![Build Status](https://travis-ci.org/vitiral/artifact.svg?branch=master)](https://travis-ci.org/vitiral/artifact)
+
+![logo](logo/logo.png)
 
 ### Pre-release notice
 Artifact is now feature complete for 1.0. The 0.6 release has been released and
@@ -63,29 +63,17 @@ still be necessary. After the soak, the plan is to cut the 1.0 release which
 will disallow backwards incompatible changes.
 
 #### Future Improvements
-The current release is targeted towards open source developers. Future releases
-aim to support industry by allowing editing of artifacts via the Web UI, as
-well as tracking and graphing of test execution across their product's versions.
+- [#85][10]: Web Server requirements, including editing functionality
+- [#58][11]: Test Tracking Server/Database for tracking regression tests
 
-- [ ] web-ui settings (in `.art/web-ui.toml`)
-- [ ] Extensive selenium testing of Web UI
-- [x] UpdateArtifacts API call
-- [ ] CreateArtifacts API call
-- [ ] DeleteArtifacts API call
-- [ ] Web UI search/filter functionality
-- [ ] Web UI markdown rendering
-- [ ] Web UI edit functionality
-- [ ] Web UI create/delete functionality
-- [ ] cmdline settings (in `.art/cmd.toml`)
-- [ ] JSON-RPC API for Test Execution Tracking with DB backend
-- [ ] cmdline utility for viewing tracked tests
-- [ ] Web UI for viewing tracked tests
+[10]: https://github.com/vitiral/artifact/issues/85
+[11]: https://github.com/vitiral/artifact/issues/58
 
 ## Contributors
 
 Please check out the [Contributor Guide][20]
 
-[20]: https://github.com/vitiral/artifact/wiki/Contributor-Guide
+[20]: https://github.com/vitiral/artifact/wiki
 
 ## Licensing
 All documentation and tutorials for the artifact application are released under
@@ -98,11 +86,18 @@ The CC0 license applies to:
 - All project [docs](docs)
 - The [Artifact Design Documents](http://vitiral.github.io/artifact/#artifacts/REQ-1)
     (also located in `design/`)
+- The Artifact Documentation (located in `docs/`)
 - The [Artifact Wiki](https://github.com/vitiral/artifact/wiki)
 - Any documents created by `art init` (in `src/cmd/data`)
 - Any documents created by `art tutorial` (n `src/cmd/data`)
+
+The artifact logo (named Tula) is licensed under Creative Commons
+Attribution-ShareAlike (CC BY-SA) and can be used by the artifact project for
+any purpose without needing additional attribution. The artifact logo is located
+in `logo/` and was originally created by @packapotatoes
 
 The artifact library and Web UI (located in `src/` and `web-ui/src`) are
 licensed under the LGPLv3+, except for files which say otherwise in their
 header or folders containing a different LICENSE.txt. See LICENSE.txt for more
 information.
+

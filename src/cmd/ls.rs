@@ -15,72 +15,80 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * */
 
+use tabwriter::TabWriter;
+
 use dev_prefix::*;
-
-use serde_json;
-
-use super::types::*;
-use super::display;
+use types::*;
+use cmd::types::*;
+use cmd::display;
+use export;
 
 /// Get the ls subcommand, which is what creates the command
 /// for the cmdline
 /// see: SPC-cmd-ls
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("ls")
-        .about("list artifacts according to various parameters")
-        .settings(&[AS::DeriveDisplayOrder, COLOR])
+        .about("List artifacts according to various parameters")
+        .settings(&SUBCMD_SETTINGS)
         .arg(Arg::with_name("search")
-            .help("artifact names given in form `REQ-foo-[bar, baz-[1,2]]` OR pearl regexp \
-                   pattern if -p is given")
+            .help("Artifact names given in the brace pattern form \
+                   e.g. REQ-foo-[bar, baz-[1,2]] \
+                   OR regexp pattern if -p is given. Regular expressions use \
+                   the rust regular expression syntax \
+                   https://doc.rust-lang.org/regex/regex/index.html#syntax")
             .use_delimiter(false))
         .arg(Arg::with_name("pattern")
             .short("p")
-            .help("search FIELDS using pearl regexp SEARCH.")
+            .help("Search FIELDS using regexp SEARCH.")
             .value_name("FIELDS")
             .takes_value(true)
             .max_values(1)
             .min_values(0))
         .arg(Arg::with_name("long")
             .short("l")
-            .help("print items in the 'long form'"))
+            .help("Print items in the 'long form'"))
         .arg(Arg::with_name("completed")
+            .value_name("COMPLETED")
             .short("c")
-            .help("filter by completeness (ie `<45`), < and > are inclusive, '>' == `>100`")
+            .help("Filter by completeness (e.g. '<45'), < and > are inclusive. \
+                   < is a shortcut for 0%, and > is a shortcut for 100%")
             .takes_value(true))
         .arg(Arg::with_name("tested")
+            .value_name("TESTED")
             .short("t")
-            .help("give a filter for the testedness in %. see '-c'")
+            .help("Filter by testedness in percent. See '-c'")
             .takes_value(true))
         .arg(Arg::with_name("all")
             .short("A")
             .help("If set, additional flags will be *deactivated* instead of activated"))
         .arg(Arg::with_name("path")
             .short("D")
-            .help("display the path where the artifact is defined"))
+            .help("Display the path where the artifact is defined"))
         .arg(Arg::with_name("parts")
             .short("P")
-            .help("display the parts of the artifact"))
+            .help("Display the parts of the artifact"))
         .arg(Arg::with_name("partof")
             .short("O")
-            .help("display the artifacts which this artifact is a partof"))
+            .help("Display the artifacts which this artifact is a partof"))
         .arg(Arg::with_name("loc")
             .short("L")
-            .help("display location name"))
+            .help("Display location name"))
         .arg(Arg::with_name("text")
             .short("T")
-            .help("display the text description of this artifact (first line only if not -l)"))
+            .help("Display the first line text description of this artifact. \
+                   Print the full description with -l, otherwise the first line."))
         .arg(Arg::with_name("plain")
             .long("plain")
-            .help("do not display color in the output"))
+            .help("Do not display color in the output"))
         .arg(Arg::with_name("type")
             .long("type")
             .value_name("TYPE")
             .takes_value(true)
-            .help("output type, default 'list'. Supported types are: list, json"))
+            .help("Output type, default 'list'. Supported types: list, json"))
     //.arg(Arg::with_name("file")
     //    .long("file")
     //    .takes_value(true)
-    //    .help("output to file instead of stdout"))
+    //    .help("Output to file instead of stdout"))
 }
 
 /// return (lt, percent) returning None when there is no value
@@ -98,7 +106,7 @@ pub fn _get_percent(s: &str) -> result::Result<(Option<bool>, Option<i8>), Strin
         _ => {
             return Err("percent must be of the form: [SIGN]NUM where NUM is between 0 and 100 and \
                         SIGN is an optional < or >"
-                .to_string())
+                               .to_string())
         }
     }
     if had_sign {
@@ -125,41 +133,41 @@ pub fn _get_percent(s: &str) -> result::Result<(Option<bool>, Option<i8>), Strin
 
 fn get_percent(s: &str) -> result::Result<PercentSearch, String> {
     Ok(match _get_percent(s) {
-        Ok((lt, perc)) => {
-            if lt.is_none() && perc.is_none() {
-                PercentSearch {
-                    lt: false,
-                    perc: 100,
-                }
-            } else if perc.is_none() {
-                if lt.unwrap() {
-                    PercentSearch {
-                        lt: true,
-                        perc: 0,
-                    }
-                } else {
-                    PercentSearch {
-                        lt: false,
-                        perc: 100,
-                    }
-                }
-            } else {
-                let lt = match lt {
-                    None => false,
-                    Some(l) => l,
-                };
-                let perc = match perc {
-                    None => 100,
-                    Some(p) => p,
-                };
-                PercentSearch {
-                    lt: lt,
-                    perc: perc,
-                }
+           Ok((lt, perc)) => {
+               if lt.is_none() && perc.is_none() {
+                   PercentSearch {
+                       lt: false,
+                       perc: 100,
+                   }
+               } else if perc.is_none() {
+        if lt.unwrap() {
+            PercentSearch {
+                lt: true,
+                perc: 0,
+            }
+        } else {
+            PercentSearch {
+                lt: false,
+                perc: 100,
             }
         }
-        Err(e) => return Err(e),
-    })
+    } else {
+        let lt = match lt {
+            None => false,
+            Some(l) => l,
+        };
+        let perc = match perc {
+            None => 100,
+            Some(p) => p,
+        };
+        PercentSearch {
+            lt: lt,
+            perc: perc,
+        }
+    }
+           }
+           Err(e) => return Err(e),
+       })
 }
 
 #[test]
@@ -175,39 +183,39 @@ fn test_get_percent() {
     // test full struct
     assert_eq!(get_percent(""),
                Ok(PercentSearch {
-                   lt: false,
-                   perc: 100,
-               }));
+                      lt: false,
+                      perc: 100,
+                  }));
     assert_eq!(get_percent("<"),
                Ok(PercentSearch {
-                   lt: true,
-                   perc: 0,
-               }));
+                      lt: true,
+                      perc: 0,
+                  }));
     assert_eq!(get_percent(">"),
                Ok(PercentSearch {
-                   lt: false,
-                   perc: 100,
-               }));
+                      lt: false,
+                      perc: 100,
+                  }));
     assert_eq!(get_percent("89"),
                Ok(PercentSearch {
-                   lt: false,
-                   perc: 89,
-               }));
+                      lt: false,
+                      perc: 89,
+                  }));
     assert_eq!(get_percent(">89"),
                Ok(PercentSearch {
-                   lt: false,
-                   perc: 89,
-               }));
+                      lt: false,
+                      perc: 89,
+                  }));
     assert_eq!(get_percent("<89"),
                Ok(PercentSearch {
-                   lt: true,
-                   perc: 89,
-               }));
+                      lt: true,
+                      perc: 89,
+                  }));
     assert_eq!(get_percent(">-1"),
                Ok(PercentSearch {
-                   lt: false,
-                   perc: -1,
-               }));
+                      lt: false,
+                      perc: -1,
+                  }));
 
     // invalid
     assert!(get_percent(">101").is_err());
@@ -306,8 +314,8 @@ pub fn get_cmd(matches: &ArgMatches) -> Result<Cmd> {
 
 #[allow(trivial_regex)]
 /// perform the ls command given the inputs
-pub fn run_cmd<W: Write>(mut w: &mut W, cwd: &Path, cmd: &Cmd, project: &Project) -> Result<()> {
-    let mut dne: Vec<ArtNameRc> = Vec::new();
+pub fn run_cmd<W: Write>(mut w: &mut W, cwd: &Path, cmd: &Cmd, project: &Project) -> Result<u8> {
+    let mut dne: Vec<NameRc> = Vec::new();
     let artifacts = &project.artifacts;
     let mut fmt_set = cmd.fmt_settings.clone();
 
@@ -323,7 +331,7 @@ pub fn run_cmd<W: Write>(mut w: &mut W, cwd: &Path, cmd: &Cmd, project: &Project
         names
     } else {
         // names are exactly specified according to the partof syntax
-        let want_names = match ArtNames::from_str(&cmd.pattern) {
+        let want_names = match Names::from_str(&cmd.pattern) {
             Ok(n) => n,
             Err(e) => {
                 error!("{}", e);
@@ -346,9 +354,7 @@ pub fn run_cmd<W: Write>(mut w: &mut W, cwd: &Path, cmd: &Cmd, project: &Project
     // filter by various settings (not just pattern, also test/completeness %, etc)
     let names: Vec<_> = {
         let pat = if cmd.search_settings.use_regex {
-            let p = RegexBuilder::new(&cmd.pattern)
-                .case_insensitive(true)
-                .build();
+            let p = RegexBuilder::new(&cmd.pattern).case_insensitive(true).build();
             match p {
                 Ok(p) => p,
                 Err(e) => {
@@ -360,44 +366,39 @@ pub fn run_cmd<W: Write>(mut w: &mut W, cwd: &Path, cmd: &Cmd, project: &Project
         };
         names.drain(0..)
             .filter(|n| {
-                let a = artifacts.get(n).unwrap(); // we are guaranteed the name exists
-                ui::show_artifact(n, a, &pat, &cmd.search_settings)
-            })
+                        let a = artifacts.get(n).unwrap(); // we are guaranteed the name exists
+                        ui::show_artifact(n, a, &pat, &cmd.search_settings)
+                    })
             .collect()
     };
     debug!("artifact names selected: {:?}", names);
     if fmt_set.is_empty() {
         fmt_set.parts = true;
-        fmt_set.path = true;
     }
 
-    if !names.is_empty() && !fmt_set.long && cmd.ty == OutType::List {
-        display::write_table_header(w, &fmt_set);
-
-    }
-
-    let mut displayed = ArtNames::new();
+    let mut displayed = Names::new();
     // #SPC-cmd-ls-type
     match cmd.ty {
         OutType::List => {
+            let mut tw = TabWriter::new(w);
+            if !names.is_empty() && !fmt_set.long {
+                display::write_table_header(&mut tw, &fmt_set);
+            }
             for name in names {
                 let f =
                     ui::fmt_artifact(&name, artifacts, &fmt_set, fmt_set.recurse, &mut displayed);
-                f.write(w, cwd, artifacts, fmt_set.color, 0)?;
+                f.write(&mut tw, cwd, artifacts, fmt_set.color, 0)?;
             }
+            tw.flush()?; // this is necessary for actually writing the output
         }
         OutType::Json => {
-            let out_arts: Vec<_> = names.iter()
-                .map(|n| artifacts.get(n).unwrap().to_data(n))
-                .collect();
-            let value = serde_json::to_value(out_arts).unwrap();
-            w.write_all(serde_json::to_string(&value).unwrap().as_bytes())?;
+            w.write_all(export::project_artifacts_to_json(project, Some(&names)).as_bytes())?;
         }
     }
     if !dne.is_empty() {
         return Err(ErrorKind::NameNotFound(format!("The following artifacts do not exist: {:?}",
                                                    dne))
-            .into());
+                           .into());
     }
-    Ok(())
+    Ok(0)
 }

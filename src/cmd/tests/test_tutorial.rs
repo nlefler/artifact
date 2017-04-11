@@ -1,21 +1,22 @@
 //! #TST-cmd-tutorial
 
-use dev_prefix::*;
-use core::prefix::*;
-use core::load;
-use cmd::tutorial as tut;
+use tempdir;
 
-lazy_static! {
-    pub static ref CWD: PathBuf = env::current_dir().unwrap();
-    pub static ref TEST_DIR: PathBuf = CWD.join(PathBuf::from(
-        file!()).parent().unwrap().to_path_buf());
-}
+use dev_prefix::*;
+use types::*;
+use user;
+use cmd::tutorial as tut;
+use cmd::init;
+use test_data;
+
 
 #[test]
 /// just test some assumptions, like that the different "levels"
 /// of files aren't equal and that toml files can be loaded
 /// by artifact
-fn test_tutorial_basic() {
+///
+/// This also test's init files because it fits in easily
+fn test_cmd_data_valid() {
     assert_ne!(tut::D_SETTINGS_1_TOML, tut::D_SETTINGS_2_TOML);
     assert_ne!(tut::D_SETTINGS_1_TOML, tut::D_SETTINGS_4_TOML);
     assert_ne!(tut::D_SETTINGS_2_TOML, tut::D_SETTINGS_4_TOML);
@@ -23,24 +24,29 @@ fn test_tutorial_basic() {
     assert_ne!(tut::D_LOAD_1_PY, tut::D_LOAD_2_PY);
     assert_ne!(tut::D_LOAD_1_TOML, tut::D_LOAD_2_TOML);
 
-    let toml_files =
-        vec![tut::D_TUTORIAL_TOML, tut::D_PURPOSE_TOML, tut::D_LOAD_1_TOML, tut::D_LOAD_2_TOML];
+    let toml_files = vec![tut::D_TUTORIAL_TOML,
+                          tut::D_PURPOSE_TOML,
+                          tut::D_LOAD_1_TOML,
+                          tut::D_LOAD_2_TOML,
+                          init::PURPOSE_TOML];
 
-    let settings_files =
-        vec![tut::D_SETTINGS_1_TOML, tut::D_SETTINGS_2_TOML, tut::D_SETTINGS_4_TOML];
+    let settings_files = vec![tut::D_SETTINGS_1_TOML,
+                              tut::D_SETTINGS_2_TOML,
+                              tut::D_SETTINGS_4_TOML,
+                              init::SETTINGS_TOML];
 
     let p = Path::new("foo");
     for (i, toml) in toml_files.iter().enumerate() {
         let mut project = Project::default();
         let text = str::from_utf8(toml).unwrap();
-        load::load_toml(&p, text, &mut project)
+        user::load_toml(&p, text, &mut project)
             .expect(&format!("could not load tutorial toml at index: {}", i));
     }
 
     for (i, toml) in settings_files.iter().enumerate() {
         let text = str::from_utf8(toml).unwrap();
-        let tbl = load::parse_toml(text).unwrap();
-        Settings::from_table(&tbl)
+        let tbl = test_data::parse_text(text);
+        user::settings_from_table(&tbl)
             .expect(&format!("could not load tutorial settings at index: {}", i));
     }
 }
@@ -83,8 +89,8 @@ fn test_line_length() {
 /// just make sure we can run the tutorial without errors
 /// in any order
 fn test_run_through() {
-    let tmp = TEST_DIR.join("test_tmp");
-    fs::create_dir(&tmp).unwrap();
+    let tmpdir = tempdir::TempDir::new("artifact").unwrap();
+    let tmp = tmpdir.path();
     tut::run_cmd(&tmp, 1).expect("part 1");
     tut::run_cmd(&tmp, 2).expect("part 2");
     tut::run_cmd(&tmp, 3).expect("part 3");

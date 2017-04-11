@@ -192,7 +192,8 @@ artifactDecoder =
     |> required "text" Decode.string
     |> required "partof" (Decode.list nameDecoder)
     |> required "parts" (Decode.list nameDecoder)
-    |> required "loc" (Decode.nullable locDecoder)
+    |> required "code" (Decode.nullable locDecoder)
+    |> required "done" (Decode.nullable Decode.string)
     |> required "completed" Decode.float
     |> required "tested" Decode.float
     |> hardcoded Nothing
@@ -214,8 +215,7 @@ locDecoder : Decode.Decoder Loc
 locDecoder =
   decode Loc
     |> required "path" Decode.string
-    |> required "row" Decode.int
-    |> required "col" Decode.int
+    |> required "line" Decode.int
 
 
 

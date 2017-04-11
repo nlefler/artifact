@@ -27,8 +27,7 @@ type alias NameKey =
 
 type alias Loc =
   { path : String
-  , row : Int
-  , col : Int
+  , line : Int
   }
 
 type alias Name =
@@ -52,7 +51,8 @@ type alias Artifact =
   , text : String
   , partof : List Name
   , parts : List Name
-  , loc : Maybe Loc
+  , code : Maybe Loc
+  , done : Maybe String
   , completed : Float
   , tested : Float
   , edited : Maybe ArtifactEditable

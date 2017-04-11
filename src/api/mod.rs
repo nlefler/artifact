@@ -17,7 +17,13 @@ use nickel::StaticFilesHandler;
 use tar::Archive;
 use tempdir::TempDir;
 
-use core::{Project, ArtifactData};
+use types::Project;
+use export::ArtifactData;
+
+use diesel::prelude::*;
+use diesel::pg::PgConnection;
+use dotenv::dotenv;
+use std::env;
 
 mod constants;
 mod utils;
@@ -26,6 +32,8 @@ mod update;
 
 #[cfg(test)]
 mod tests;
+
+mod types;
 
 const WEB_FRONTEND_TAR: &'static [u8] = include_bytes!("data/web-ui.tar");
 
@@ -42,6 +50,18 @@ fn setup_headers(res: &mut Response) {
                  vec![bv("GET, POST, OPTIONS, PUT, PATCH, DELETE")]);
     head.set_raw("Access-Control-Allow-Headers",
                  vec![bv("X-Requested-With,content-type")]);
+}
+
+
+
+
+pub fn establish_connection() -> PgConnection {
+    dotenv().ok();
+
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set");
+    PgConnection::establish(&database_url)
+        .expect(&format!("Error connection to {}", database_url))
 }
 
 fn config_json_res(res: &mut Response) {
@@ -77,6 +97,12 @@ fn handle_artifacts<'a>(req: &mut Request, mut res: Response<'a>) -> MiddlewareR
             res.send(msg)
         }
     }
+}
+
+fn handle_options<'a>(_: &mut Request, mut res: Response<'a>) -> MiddlewareResult<'a> {
+    setup_headers(&mut res);
+    res.set(StatusCode::Ok);
+    res.send("ok")
 }
 
 /// host the frontend web-server, returning the tempdir where it the
@@ -120,7 +146,7 @@ pub fn start_api(project: Project, addr: &str, edit: bool) {
     {
         let artifacts: Vec<ArtifactData> = project.artifacts
             .iter()
-            .map(|(name, model)| model.to_data(name))
+            .map(|(name, model)| model.to_data(&project.origin, name))
             .collect();
         let mut locked = ARTIFACTS.lock().unwrap();
         let global: &mut Vec<ArtifactData> = locked.deref_mut();
@@ -139,12 +165,7 @@ pub fn start_api(project: Project, addr: &str, edit: bool) {
 
     server.get(endpoint, handle_artifacts);
     server.put(endpoint, handle_artifacts);
-    server.options(endpoint,
-                   middleware! { |_, mut res|
-        setup_headers(&mut res);
-        res.set(StatusCode::Ok);
-        "ok"
-    });
+    server.options(endpoint, handle_options);
 
     // host the frontend files using a static file handler
     // and own the tmpdir for as long as needed

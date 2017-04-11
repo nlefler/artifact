@@ -14,7 +14,6 @@
  * You should have received a copy of the Lesser GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * */
-pub use core::prefix::*;
 
 // stdlib
 pub use std::process::exit;
@@ -25,12 +24,26 @@ pub use ansi_term::Colour::{Red, Blue, Green, Yellow};
 pub use clap::{Arg, App, SubCommand, ArgMatches, AppSettings as AS, Result as ClapResult};
 
 // module types
-pub use core;
-pub use core::utils;
 pub use ui;
 pub use ui::{FmtSettings, FmtArtifact, PercentSearch, SearchSettings};
 
-pub const COLOR: AS = AS::ColorAuto;
+#[cfg(not(windows))]
+pub const SUBCMD_SETTINGS: [AS; 3] = [AS::DeriveDisplayOrder, AS::ColorAuto, AS::ColoredHelp];
+
+#[cfg(windows)]
+pub const SUBCMD_SETTINGS: [AS; 1] = [AS::DeriveDisplayOrder];
+
+lazy_static!{
+    pub static ref APP_SETTINGS: Vec<AS> = {
+        let mut v = vec![
+            AS::ArgRequiredElseHelp,
+            AS::SubcommandRequiredElseHelp,
+            AS::VersionlessSubcommands,
+        ];
+        v.extend_from_slice(&SUBCMD_SETTINGS);
+        v
+    };
+}
 
 #[cfg(windows)]
 pub const COLOR_IF_POSSIBLE: bool = false;

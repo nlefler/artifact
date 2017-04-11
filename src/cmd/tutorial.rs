@@ -18,14 +18,15 @@
 #![allow(non_snake_case)]
 
 use dev_prefix::*;
+use types::*;
 use super::types::*;
 
 /// return the cmdline subcommand
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("tutorial")
-        .about("start the interactive tutorial")
-        .settings(&[AS::DeriveDisplayOrder, COLOR])
-        .arg(Arg::with_name("part").help("the part to set the tutorial at"))
+        .about("Start the interactive tutorial")
+        .settings(&SUBCMD_SETTINGS)
+        .arg(Arg::with_name("part").help("The section of the tutorial to view"))
 }
 
 /// parse the matches to create the cmd
@@ -89,7 +90,7 @@ pub const D_SETTINGS_4_TOML: &'static [u8] = include_bytes!("data/settings-4.tom
 
 /// run the tutorial
 /// partof: #SPC-cmd-tutorial
-pub fn run_cmd(cwd: &Path, part: u8) -> Result<()> {
+pub fn run_cmd(cwd: &Path, part: u8) -> Result<u8> {
     // let CWD: PathBuf = env::current_dir().unwrap();
     let RST_DIR: PathBuf = cwd.join(PathBuf::from(".art"));
     let DESIGN_DIR: PathBuf = cwd.join(PathBuf::from("design"));
@@ -155,13 +156,13 @@ pub fn run_cmd(cwd: &Path, part: u8) -> Result<()> {
         // make sure the directory is empty -- we don't want to
         // delete anything we shouldn't
         if fs::read_dir(&cwd)
-            .chain_err(|| format!("could not read dir: {}", cwd.display()))?
-            .next()
-            .is_some() {
+               .chain_err(|| format!("could not read dir: {}", cwd.display()))?
+               .next()
+               .is_some() {
             println!("ERROR: can only start the artifact tutorial in an empty directory. \
                       To make an empty directory and change-dir to it, run:\n    \
                       mkdir ~/tryrst; cd ~/tryrst");
-            return Ok(());
+            return Ok(0);
         }
     } else {
         debug!("cwd is already a tutorial")
@@ -218,5 +219,5 @@ pub fn run_cmd(cwd: &Path, part: u8) -> Result<()> {
             }
         }
     }
-    Ok(())
+    Ok(0)
 }

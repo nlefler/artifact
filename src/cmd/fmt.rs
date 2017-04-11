@@ -15,28 +15,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * */
 use dev_prefix::*;
-use super::types::*;
-use core::save::PathDiff;
-use core::types::ProjectText;
-use core::security;
+use types::*;
+use cmd::types::*;
+use user::{ProjectText, PathDiff};
+use security;
+use user;
 
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("fmt")
-        .about("format your design documents")
+        .about("Format your design documents")
+        .settings(&SUBCMD_SETTINGS)
         //.arg(Arg:with_name("diff")
         //     .short("d")
-        //     .help("only get the diff printed to stdout"))
+        //     .help("Only get the diff printed to stdout"))
         .arg(Arg::with_name("list")
              .short("l")
-             .help("list files that will be affected and exit"))
+             .help("List files that will be affected and exit"))
         .arg(Arg::with_name("diff")
              .short("d")
-             .help("print out the diff stdout and exit"))
+             .help("Print out the diff stdout and exit"))
         .arg(Arg::with_name("write")
              .short("w")
-             .help("If a file's formatting is different from art fmt,
+             .help("If a file's formatting is different from art fmt, \
                     overwrite it with art fmt's vesion"))
-        .settings(&[AS::DeriveDisplayOrder, COLOR])
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -61,7 +62,7 @@ pub fn get_cmd(matches: &ArgMatches) -> Result<Cmd> {
 
 /// format the toml files (or just print diffs)
 /// partof: #SPC-cmd-fmt
-pub fn run_cmd(w: &mut Write, repo: &Path, project: &Project, cmd: &Cmd) -> Result<()> {
+pub fn run_cmd(w: &mut Write, repo: &Path, project: &Project, cmd: &Cmd) -> Result<u8> {
     let ptext = ProjectText::from_project(project)?;
     let indent = if *cmd == Cmd::Diff {
         // str.repeat would be great....
@@ -71,7 +72,7 @@ pub fn run_cmd(w: &mut Write, repo: &Path, project: &Project, cmd: &Cmd) -> Resu
     };
     // check to make sure nothing has actually changed
     // see: TST-fmt
-    let fmt_project = core::process_project_text(project.settings.clone(), &ptext).chain_err(
+    let fmt_project = user::process_project_text(project.settings.clone(), &ptext).chain_err(
         || "internal fmt error: could not process project text.".to_string())?;
     project.equal(&fmt_project)
         .chain_err(|| "internal fmt error: formatted project has different data.".to_string())?;
@@ -103,12 +104,12 @@ pub fn run_cmd(w: &mut Write, repo: &Path, project: &Project, cmd: &Cmd) -> Resu
                     }
                 }
             }
-            Ok(())
+            Ok(0)
         }
         Cmd::Write => {
             // dump the ptext and then make sure nothing changed...
             ptext.dump()?;
-            let new_project = match core::load_path(&project.origin) {
+            let new_project = match user::load_repo(&project.origin) {
                 Ok(p) => p,
                 Err(err) => {
                     // see: TST-fmt
@@ -128,7 +129,7 @@ pub fn run_cmd(w: &mut Write, repo: &Path, project: &Project, cmd: &Cmd) -> Resu
                 Err(err)
             } else {
                 info!("fmt was successful");
-                Ok(())
+                Ok(0)
             }
         }
     }

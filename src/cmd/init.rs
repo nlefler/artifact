@@ -15,34 +15,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * */
 use dev_prefix::*;
-use super::types::*;
+use types::*;
+use cmd::types::*;
 
 
-const SETTINGS_TOML: &'static [u8] = include_bytes!("data/settings-template.toml");
+pub const SETTINGS_TOML: &'static [u8] = include_bytes!("data/settings-template.toml");
 
-const PURPOSE_TOML: &'static [u8] = include_bytes!("data/purpose-template.toml");
+pub const PURPOSE_TOML: &'static [u8] = include_bytes!("data/purpose-template.toml");
 
 pub fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
     // #SPC-cmd-init
     SubCommand::with_name("init")
-        .about("initialize the repository in the cwd")
-        .settings(&[AS::DeriveDisplayOrder, COLOR])
+        .about("Initialize an artifact repository in the current directory")
+        .settings(&SUBCMD_SETTINGS)
 }
 
-pub fn run_cmd(path: &Path) -> Result<()> {
+pub fn run_cmd(path: &Path) -> Result<u8> {
     let mut read_dir = fs::read_dir(path).chain_err(|| format!("dir: {}", path.display()))?;
     let exists = read_dir.any(|e| match e {
-        Err(_) => false,
-        Ok(e) => {
-            if !e.file_type().unwrap().is_dir() {
-                false
-            } else {
-                let p = e.path();
-                let fname = p.file_name().unwrap().to_str().unwrap();
-                fname == ".art"
-            }
-        }
-    });
+                                  Err(_) => false,
+                                  Ok(e) => {
+                                      if !e.file_type().unwrap().is_dir() {
+                                          false
+                                      } else {
+                                          let p = e.path();
+                                          let fname = p.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+                                          fname == ".art"
+                                      }
+                                  }
+                              });
     let repo = path.join(".art");
     let design = path.join("design");
     if !exists {
@@ -61,10 +65,7 @@ pub fn run_cmd(path: &Path) -> Result<()> {
                 .write_all(SETTINGS_TOML.as_ref())
                 .unwrap();
             println!("art initialized at {}", settings.display());
-            if let Ok(mut f) = fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&purpose) {
+            if let Ok(mut f) = fs::OpenOptions::new().create_new(true).write(true).open(&purpose) {
                 f.write_all(PURPOSE_TOML.as_ref()).unwrap();
                 println!("art created initial design.toml at {}", design.display())
             }
@@ -72,5 +73,5 @@ pub fn run_cmd(path: &Path) -> Result<()> {
     } else {
         println!("artifact already initialized at {}", repo.display());
     }
-    Ok(())
+    Ok(0)
 }
